@@ -37,7 +37,7 @@ struct Record
 end
 
 function extrecords(chunk::AbstractVector{UInt8})
-	intvstarts = Int[]
+	records = Record[]
 	i = 513                       # discard the starting 512-byte rubbish
 	while i <= CHUNKSIZE - 19
 		if chunk[i:i+3] == [0xAA, 0xAA, 0xAA, 0xAA]
@@ -47,11 +47,11 @@ function extrecords(chunk::AbstractVector{UInt8})
 		elseif chunk[i:i+3] == [0xFF, 0xFF, 0xFF, 0xFF]
 			break                 # discard rubbish region padded with 0xFF
 		else
-			push!(intvstarts, i)  # collect a valid record
+			push!(records, Record(chunk[i:i+19])) # collect a valid record
 			i += 20
 		end
 	end
-	return Record.(map(i -> chunk[i:i+19], intvstarts))
+	return records
 end
 
 function extrecords(filename::AbstractString)
