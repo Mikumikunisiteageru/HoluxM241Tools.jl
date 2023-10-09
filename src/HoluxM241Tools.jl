@@ -2,7 +2,10 @@
 
 module HoluxM241Tools
 
+export gpsbin2tsv
+
 using Dates
+using Printf
 
 const CHUNKSIZE = 65536
 const EPOCH2SEC = Dates.value(Second(Week(1024))) # 619315200
@@ -15,6 +18,7 @@ calibtime(utimeraw::Real, timeref::DateTime=now()) =
 	calibtime(utimeraw, datetime2unix(timeref))
 
 struct Record
+	utimeraw0::Int32
 	time::DateTime
 	latitude::Float32
 	longitude::Float32
@@ -31,8 +35,8 @@ struct Record
 		altitude,  = reinterpret(Float32, icosabyte[12:15])
 		velocity,  = reinterpret(Float32, icosabyte[16:19])
 		checkbit   = reduce(xor, icosabyte)
-		# iszero(checkbit) || throw(ArgumentError("checksum failed"))
-		return new(time, latitude, longitude, altitude, velocity, checkbit)
+		return new(utimeraw0, time, 
+			latitude, longitude, altitude, velocity, checkbit)
 	end
 end
 
@@ -54,10 +58,26 @@ function extrecords(chunk::AbstractVector{UInt8})
 	return records
 end
 
-function extrecords(filename::AbstractString)
-	data = open(read, filename, "r")
+function extrecords(finname::AbstractString)
+	data = open(read, finname, "r")
 	chunks = Iterators.partition(data, CHUNKSIZE)
-	return reduce(vcat, exrecords.(chunks))
+	return reduce(vcat, extrecords.(chunks))
 end
+
+printrecords(foutname::AbstractString, records::AbstractVector{Record}) = 
+	open(foutname, "w") do fout
+		for (i, record) = enumerate(records)
+			write(fout, join([i, record.utimeraw0, 
+				Dates.format(record.time, "YYYY-mm-dd,HH:MM:SS"), 
+				@sprintf("%.6f", record.latitude), 
+				@sprintf("%.6f", record.longitude), 
+				@sprintf("%.1f", record.altitude), 
+				@sprintf("%.3f", record.velocity), 
+				record.checkbit], '\t'), '\n')
+		end
+	end
+
+gpsbin2tsv(finname::AbstractString, foutname::AbstractString) = 
+	printrecords(foutname, extrecords(finname))
 
 end # module HoluxM241Tools
