@@ -25,7 +25,7 @@ struct Record
 	altitude::Float32
 	velocity::Float32
 	checkbit::UInt8
-	function Record(icosabyte::AbstractVector{UInt8}, 
+	function Record(icosabyte::AbstractVector{UInt8}; 
 			timezone::Real=+8, timeref=now())
 		utimeraw0, = reinterpret(Int32, icosabyte[1:4])
 		utimeraw   = utimeraw0 + timezone * HOUR2SEC
@@ -40,7 +40,8 @@ struct Record
 	end
 end
 
-function extrecords(chunk::AbstractVector{UInt8})
+function extrecords(chunk::AbstractVector{UInt8}; 
+		timezone::Real=+8, timeref=now())
 	records = Record[]
 	i = 513                       # discard the starting 512-byte rubbish
 	while i <= CHUNKSIZE - 19
@@ -51,17 +52,18 @@ function extrecords(chunk::AbstractVector{UInt8})
 		elseif chunk[i:i+3] == [0xFF, 0xFF, 0xFF, 0xFF]
 			break                 # discard rubbish region padded with 0xFF
 		else
-			push!(records, Record(chunk[i:i+19])) # collect a valid record
-			i += 20
+			push!(records, Record(chunk[i:i+19]; 
+				timezone=timezone, timeref=timeref))
+			i += 20               # collect a valid record
 		end
 	end
 	return records
 end
 
-function extrecords(finname::AbstractString)
-	data = open(read, finname, "r")
+function extrecords(finname::AbstractString; timezone::Real=+8, timeref=now())
+	data = read(finname)
 	chunks = Iterators.partition(data, CHUNKSIZE)
-	return reduce(vcat, extrecords.(chunks))
+	return reduce(vcat, extrecords.(chunks; timezone=timezone, timeref=timeref))
 end
 
 printrecords(foutname::AbstractString, records::AbstractVector{Record}) = 
@@ -77,7 +79,9 @@ printrecords(foutname::AbstractString, records::AbstractVector{Record}) =
 		end
 	end
 
-gpsbin2tsv(finname::AbstractString, foutname::AbstractString) = 
-	printrecords(foutname, extrecords(finname))
+gpsbin2tsv(finname::AbstractString, foutname::AbstractString; 
+	timezone::Real=+8, timeref=now()) = 
+		printrecords(foutname, 
+			extrecords(finname; timezone=timezone, timeref=timeref))
 
 end # module HoluxM241Tools
