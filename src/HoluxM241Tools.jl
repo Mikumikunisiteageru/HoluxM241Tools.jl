@@ -12,7 +12,7 @@ const EPOCH2SEC = Dates.value(Second(Week(1024))) # 619315200
 const HOUR2SEC = Dates.value(Second(Hour(1))) # 3600
 
 # GPS week number rollover
-calibtime(utimeraw::Real, utimeref::Real=datetime2unix(now())) = 
+calibtime(utimeraw::Real, utimeref::Real) = 
 	utimeref - mod(utimeref - utimeraw, EPOCH2SEC)
 calibtime(utimeraw::Real, timeref::DateTime=now()) = 
 	calibtime(utimeraw, datetime2unix(timeref))
