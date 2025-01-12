@@ -45,7 +45,8 @@ function extrecords(chunk::AbstractVector{UInt8};
 	records = Record[]
 	i = 513                       # discard the starting 512-byte rubbish
 	while i <= CHUNKSIZE - 19
-		if chunk[i:i+3] == [0xAA, 0xAA, 0xAA, 0xAA]
+		if chunk[i:i+3] == [0xAA, 0xAA, 0xAA, 0xAA] && 
+		   chunk[i+12:i+15] == [0xBB, 0xBB, 0xBB, 0xBB]
 			i += 16               # discard 16-byte rubbish from 0xAAAAAAAA
 		elseif chunk[i+16:i+19] == [0x20, 0x20, 0x20, 0x20]
 			i += 20               # discard 20-byte rubbish to 0x20202020
@@ -60,10 +61,26 @@ function extrecords(chunk::AbstractVector{UInt8};
 	return records
 end
 
-function extrecords(finname::AbstractString; timezone::Real=+8, timeref=now())
+function extrecords(finname::AbstractString; 
+		timezone::Real=+8, timeref=now(), antiattack::Bool=true)
 	data = read(finname)
 	chunks = Iterators.partition(data, CHUNKSIZE)
-	return reduce(vcat, extrecords.(chunks; timezone=timezone, timeref=timeref))
+	records = reduce(vcat, 
+		extrecords.(chunks; timezone=timezone, timeref=timeref))
+	if antiattack
+		current = typemin(DateTime)
+		keeps = trues(size(records))
+		for (i, r) = enumerate(records)
+			if r.time < current
+				keeps[i] = false
+			else
+				current = r.time
+			end
+		end
+		return records[keeps]
+	else
+		return records
+	end
 end
 
 printrecords(foutname::AbstractString, records::AbstractVector{Record}) = 
@@ -80,8 +97,8 @@ printrecords(foutname::AbstractString, records::AbstractVector{Record}) =
 	end
 
 gpsbin2tsv(finname::AbstractString, foutname::AbstractString; 
-	timezone::Real=+8, timeref=now()) = 
-		printrecords(foutname, 
-			extrecords(finname; timezone=timezone, timeref=timeref))
+	timezone::Real=+8, timeref=now(), antiattack::Bool=true) = 
+		printrecords(foutname, extrecords(finname; 
+			timezone=timezone, timeref=timeref, antiattack=antiattack))
 
 end # module HoluxM241Tools
